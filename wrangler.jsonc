@@ -1,0 +1,33 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "brew-watch",
+	"compatibility_date": "2026-06-30",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true
+	},
+	"main": "./worker/index.ts",
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "./dist"
+	},
+	"triggers": {
+		"crons": [
+			"0 * * * *"
+		]
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "brew-watch-db",
+			"database_id": "415430de-407c-4dc0-9d26-c1da8f4ab4e4",
+			"migrations_dir": "migrations"
+		}
+	]
+}

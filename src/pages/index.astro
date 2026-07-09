@@ -1,0 +1,339 @@
+---
+import { env } from "cloudflare:workers";
+import {
+  getRecentChanges,
+  brewUrl,
+  type PackageKind,
+  type ChangeCursor,
+  type ChangeRow,
+} from "../lib/db";
+
+const kindParam = Astro.url.searchParams.get("kind");
+const kind: PackageKind | "all" =
+  kindParam === "formula" || kindParam === "cask" ? kindParam : "all";
+
+// Keyset cursor for the "Recently updated" section: (detected_at, id).
+// A single snapshot run stamps every change with the same detected_at, so id
+// breaks the tie and the cursor partitions cleanly across runs.
+const beforeTs = Astro.url.searchParams.get("before");
+const beforeIdRaw = Astro.url.searchParams.get("before_id");
+const beforeId = beforeIdRaw ? Number.parseInt(beforeIdRaw, 10) : Number.NaN;
+const updatedCursor: ChangeCursor | null =
+  beforeTs && Number.isInteger(beforeId) ? { detected_at: beforeTs, id: beforeId } : null;
+
+const UPDATED_LIMIT = 100;
+const NEW_LIMIT = 50;
+
+const [newPage, updatedPage] = await Promise.all([
+  getRecentChanges(env.DB, "new", kind, { limit: NEW_LIMIT }),
+  getRecentChanges(env.DB, "updated", kind, {
+    limit: UPDATED_LIMIT,
+    cursor: updatedCursor,
+  }),
+]);
+const newPackages = newPage.rows;
+
+interface DayGroup {
+  date: string;
+  label: string;
+  rows: ChangeRow[];
+}
+
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function dayLabel(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return `${MONTHS[m - 1]} ${d}, ${y}`;
+}
+
+// detected_at is a UTC ISO string; surface the time portion deterministically
+// instead of relying on the runtime locale/timezone support.
+function timeLabel(iso: string): string {
+  return `${iso.slice(11, 16)} UTC`;
+}
+
+const updatedByDay: DayGroup[] = [];
+for (const row of updatedPage.rows) {
+  const day = row.detected_at.slice(0, 10);
+  let group = updatedByDay[updatedByDay.length - 1];
+  if (!group || group.date !== day) {
+    group = { date: day, label: dayLabel(day), rows: [] };
+    updatedByDay.push(group);
+  }
+  group.rows.push(row);
+}
+
+function filterLink(value: PackageKind | "all") {
+  return value === "all" ? "/" : `/?kind=${value}`;
+}
+
+// Preserve the kind filter and set (or clear) the updated-section cursor.
+// A null cursor returns to the newest page.
+function pageLink(cursor: ChangeCursor | null): string {
+  const params = new URLSearchParams();
+  if (kind !== "all") params.set("kind", kind);
+  if (cursor) {
+    params.set("before", cursor.detected_at);
+    params.set("before_id", String(cursor.id));
+  }
+  const qs = params.toString();
+  return qs ? `/?${qs}` : "/";
+}
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Brew Watch — new &amp; updated Homebrew packages</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      body {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 2rem 1rem 4rem;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.25rem;
+      }
+      p.subtitle {
+        opacity: 0.7;
+        margin-top: 0;
+      }
+      nav.filters {
+        display: flex;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+      }
+      nav.filters a {
+        padding: 0.35rem 0.8rem;
+        border: 1px solid currentColor;
+        border-radius: 999px;
+        text-decoration: none;
+        opacity: 0.6;
+        font-size: 0.9rem;
+      }
+      nav.filters a.active {
+        opacity: 1;
+        font-weight: 600;
+      }
+      section {
+        margin-bottom: 2.5rem;
+      }
+      section h2 {
+        font-size: 1.1rem;
+        border-bottom: 1px solid currentColor;
+        padding-bottom: 0.4rem;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      li {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.5rem 0;
+        border-bottom: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
+        font-size: 0.95rem;
+      }
+      li a {
+        color: inherit;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      li a:hover {
+        text-decoration: underline;
+      }
+      .kind-tag {
+        opacity: 0.6;
+        font-size: 0.8rem;
+        margin-left: 0.4rem;
+      }
+      .line-main {
+        display: flex;
+        flex-direction: column;
+      }
+      .line-title {
+        display: inline;
+      }
+      .desc {
+        display: block;
+        opacity: 0.55;
+        font-size: 0.82rem;
+        margin-top: 0.15rem;
+      }
+      .desc a.homepage {
+        text-decoration: none;
+        opacity: 0.8;
+      }
+      .desc a.homepage:hover {
+        text-decoration: underline;
+      }
+      .line-meta {
+        display: flex;
+        gap: 0.75rem;
+        align-items: baseline;
+        white-space: nowrap;
+      }
+      .version {
+        opacity: 0.7;
+        font-variant-numeric: tabular-nums;
+      }
+      .when {
+        opacity: 0.5;
+        font-size: 0.8rem;
+        font-variant-numeric: tabular-nums;
+      }
+      .empty {
+        opacity: 0.6;
+        font-style: italic;
+      }
+      .day-group {
+        margin-bottom: 1.75rem;
+      }
+      .day-group:last-of-type {
+        margin-bottom: 0;
+      }
+      .day-heading {
+        font-size: 0.95rem;
+        font-weight: 600;
+        opacity: 0.8;
+        margin: 0.5rem 0 0.25rem;
+        padding-bottom: 0.25rem;
+        border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+      }
+      .day-group ul {
+        margin-top: 0;
+      }
+      nav.pager {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-top: 1.25rem;
+        font-size: 0.95rem;
+      }
+      nav.pager a {
+        font-weight: 600;
+        text-decoration: none;
+      }
+      nav.pager a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Brew Watch</h1>
+    <p class="subtitle">
+      New and updated Homebrew formulae &amp; casks, tracked from
+      <a href="https://formulae.brew.sh/" target="_blank" rel="noopener">formulae.brew.sh</a>.
+    </p>
+
+    <nav class="filters">
+      <a href={filterLink("all")} class:list={{ active: kind === "all" }}>All</a>
+      <a href={filterLink("formula")} class:list={{ active: kind === "formula" }}>Formulae</a>
+      <a href={filterLink("cask")} class:list={{ active: kind === "cask" }}>Casks</a>
+    </nav>
+
+    <section>
+      <h2>Newly added</h2>
+      {
+        newPackages.length === 0 ? (
+          <p class="empty">No new packages detected yet.</p>
+        ) : (
+          <ul>
+            {newPackages.map((row) => (
+              <li>
+                <span class="line-main">
+                  <span class="line-title">
+                    <a href={brewUrl(row)} target="_blank" rel="noopener">
+                      {row.name}
+                    </a>
+                    <span class="kind-tag">{row.kind}</span>
+                  </span>
+                  {row.description && (
+                    <span class="desc">
+                      {row.description}
+                      {row.homepage && (
+                        <> · <a class="homepage" href={row.homepage} target="_blank" rel="noopener">↗</a></>
+                      )}
+                    </span>
+                  )}
+                </span>
+                <span class="line-meta">
+                  <span class="version">{row.new_version}</span>
+                  <span class="when">{timeLabel(row.detected_at)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </section>
+
+    <section>
+      <h2>Recently updated</h2>
+      {
+        updatedByDay.length === 0 ? (
+          <p class="empty">No updates detected yet.</p>
+        ) : (
+          <>
+            {updatedByDay.map((group) => (
+              <div class="day-group">
+                <h3 class="day-heading">{group.label}</h3>
+                <ul>
+                  {group.rows.map((row) => (
+                    <li>
+                      <span class="line-main">
+                        <span class="line-title">
+                          <a href={brewUrl(row)} target="_blank" rel="noopener">
+                            {row.name}
+                          </a>
+                          <span class="kind-tag">{row.kind}</span>
+                        </span>
+                        {row.description && (
+                          <span class="desc">
+                            {row.description}
+                            {row.homepage && (
+                              <> · <a class="homepage" href={row.homepage} target="_blank" rel="noopener">↗</a></>
+                            )}
+                          </span>
+                        )}
+                      </span>
+                      <span class="line-meta">
+                        <span class="version">
+                          {row.old_version} → {row.new_version}
+                        </span>
+                        <span class="when">{timeLabel(row.detected_at)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <nav class="pager">
+              {updatedCursor ? (
+                <a href={pageLink(null)}>← Newest</a>
+              ) : (
+                <span />
+              )}
+              {updatedPage.nextCursor ? (
+                <a href={pageLink(updatedPage.nextCursor)}>Older →</a>
+              ) : (
+                <span />
+              )}
+            </nav>
+          </>
+        )
+      }
+    </section>
+  </body>
+</html>
