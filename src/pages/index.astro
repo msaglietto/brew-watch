@@ -12,26 +12,34 @@ const kindParam = Astro.url.searchParams.get("kind");
 const kind: PackageKind | "all" =
   kindParam === "formula" || kindParam === "cask" ? kindParam : "all";
 
-// Keyset cursor for the "Recently updated" section: (detected_at, id).
+// Keyset cursors for each section: (detected_at, id).
 // A single snapshot run stamps every change with the same detected_at, so id
-// breaks the tie and the cursor partitions cleanly across runs.
+// breaks the tie and the cursor partitions cleanly across runs. Each section
+// owns its own param pair so the two pagers stay independent.
 const beforeTs = Astro.url.searchParams.get("before");
 const beforeIdRaw = Astro.url.searchParams.get("before_id");
 const beforeId = beforeIdRaw ? Number.parseInt(beforeIdRaw, 10) : Number.NaN;
 const updatedCursor: ChangeCursor | null =
   beforeTs && Number.isInteger(beforeId) ? { detected_at: beforeTs, id: beforeId } : null;
 
+const newBeforeTs = Astro.url.searchParams.get("new_before");
+const newBeforeIdRaw = Astro.url.searchParams.get("new_before_id");
+const newBeforeId = newBeforeIdRaw ? Number.parseInt(newBeforeIdRaw, 10) : Number.NaN;
+const newCursor: ChangeCursor | null =
+  newBeforeTs && Number.isInteger(newBeforeId)
+    ? { detected_at: newBeforeTs, id: newBeforeId }
+    : null;
+
 const UPDATED_LIMIT = 100;
 const NEW_LIMIT = 50;
 
 const [newPage, updatedPage] = await Promise.all([
-  getRecentChanges(env.DB, "new", kind, { limit: NEW_LIMIT }),
+  getRecentChanges(env.DB, "new", kind, { limit: NEW_LIMIT, cursor: newCursor }),
   getRecentChanges(env.DB, "updated", kind, {
     limit: UPDATED_LIMIT,
     cursor: updatedCursor,
   }),
 ]);
-const newPackages = newPage.rows;
 
 interface DayGroup {
   date: string;
@@ -55,30 +63,57 @@ function timeLabel(iso: string): string {
   return `${iso.slice(11, 16)} UTC`;
 }
 
-const updatedByDay: DayGroup[] = [];
-for (const row of updatedPage.rows) {
-  const day = row.detected_at.slice(0, 10);
-  let group = updatedByDay[updatedByDay.length - 1];
-  if (!group || group.date !== day) {
-    group = { date: day, label: dayLabel(day), rows: [] };
-    updatedByDay.push(group);
+function groupByDay(rows: ChangeRow[]): DayGroup[] {
+  const groups: DayGroup[] = [];
+  for (const row of rows) {
+    const day = row.detected_at.slice(0, 10);
+    let group = groups[groups.length - 1];
+    if (!group || group.date !== day) {
+      group = { date: day, label: dayLabel(day), rows: [] };
+      groups.push(group);
+    }
+    group.rows.push(row);
   }
-  group.rows.push(row);
+  return groups;
 }
+
+const newByDay = groupByDay(newPage.rows);
+const updatedByDay = groupByDay(updatedPage.rows);
 
 function filterLink(value: PackageKind | "all") {
   return value === "all" ? "/" : `/?kind=${value}`;
 }
 
-// Preserve the kind filter and set (or clear) the updated-section cursor.
-// A null cursor returns to the newest page.
-function pageLink(cursor: ChangeCursor | null): string {
+// Build a pager link for one section while preserving the other section's
+// cursor, so paging through "Newly added" doesn't reset "Recently updated"
+// (and vice versa). A null cursor returns that section to its newest page.
+function pageLink(
+  cursor: ChangeCursor | null,
+  section: "new" | "updated",
+): string {
   const params = new URLSearchParams();
   if (kind !== "all") params.set("kind", kind);
-  if (cursor) {
-    params.set("before", cursor.detected_at);
-    params.set("before_id", String(cursor.id));
+
+  // Carry the *other* section's cursor through unchanged.
+  if (section !== "updated" && updatedCursor) {
+    params.set("before", updatedCursor.detected_at);
+    params.set("before_id", String(updatedCursor.id));
   }
+  if (section !== "new" && newCursor) {
+    params.set("new_before", newCursor.detected_at);
+    params.set("new_before_id", String(newCursor.id));
+  }
+
+  if (cursor) {
+    if (section === "new") {
+      params.set("new_before", cursor.detected_at);
+      params.set("new_before_id", String(cursor.id));
+    } else {
+      params.set("before", cursor.detected_at);
+      params.set("before_id", String(cursor.id));
+    }
+  }
+
   const qs = params.toString();
   return qs ? `/?${qs}` : "/";
 }
@@ -246,35 +281,54 @@ function pageLink(cursor: ChangeCursor | null): string {
     <section>
       <h2>Newly added</h2>
       {
-        newPackages.length === 0 ? (
+        newByDay.length === 0 ? (
           <p class="empty">No new packages detected yet.</p>
         ) : (
-          <ul>
-            {newPackages.map((row) => (
-              <li>
-                <span class="line-main">
-                  <span class="line-title">
-                    <a href={brewUrl(row)} target="_blank" rel="noopener">
-                      {row.name}
-                    </a>
-                    <span class="kind-tag">{row.kind}</span>
-                  </span>
-                  {row.description && (
-                    <span class="desc">
-                      {row.description}
-                      {row.homepage && (
-                        <> · <a class="homepage" href={row.homepage} target="_blank" rel="noopener">↗</a></>
-                      )}
-                    </span>
-                  )}
-                </span>
-                <span class="line-meta">
-                  <span class="version">{row.new_version}</span>
-                  <span class="when">{timeLabel(row.detected_at)}</span>
-                </span>
-              </li>
+          <>
+            {newByDay.map((group) => (
+              <div class="day-group">
+                <h3 class="day-heading">{group.label}</h3>
+                <ul>
+                  {group.rows.map((row) => (
+                    <li>
+                      <span class="line-main">
+                        <span class="line-title">
+                          <a href={brewUrl(row)} target="_blank" rel="noopener">
+                            {row.name}
+                          </a>
+                          <span class="kind-tag">{row.kind}</span>
+                        </span>
+                        {row.description && (
+                          <span class="desc">
+                            {row.description}
+                            {row.homepage && (
+                              <> · <a class="homepage" href={row.homepage} target="_blank" rel="noopener">↗</a></>
+                            )}
+                          </span>
+                        )}
+                      </span>
+                      <span class="line-meta">
+                        <span class="version">{row.new_version}</span>
+                        <span class="when">{timeLabel(row.detected_at)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+            <nav class="pager">
+              {newCursor ? (
+                <a href={pageLink(null, "new")}>← Newest</a>
+              ) : (
+                <span />
+              )}
+              {newPage.nextCursor ? (
+                <a href={pageLink(newPage.nextCursor, "new")}>Older →</a>
+              ) : (
+                <span />
+              )}
+            </nav>
+          </>
         )
       }
     </section>
@@ -321,12 +375,12 @@ function pageLink(cursor: ChangeCursor | null): string {
             ))}
             <nav class="pager">
               {updatedCursor ? (
-                <a href={pageLink(null)}>← Newest</a>
+                <a href={pageLink(null, "updated")}>← Newest</a>
               ) : (
                 <span />
               )}
               {updatedPage.nextCursor ? (
-                <a href={pageLink(updatedPage.nextCursor)}>Older →</a>
+                <a href={pageLink(updatedPage.nextCursor, "updated")}>Older →</a>
               ) : (
                 <span />
               )}
