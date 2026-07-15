@@ -1,4 +1,5 @@
 export type ChangeType = "new" | "updated";
+export type ChangeTypeFilter = ChangeType | "all";
 export type PackageKind = "formula" | "cask";
 
 export interface ChangeRow {
@@ -34,7 +35,7 @@ export interface GetChangesOptions {
 
 export async function getRecentChanges(
   db: D1Database,
-  changeType: ChangeType,
+  changeType: ChangeTypeFilter,
   kind: PackageKind | "all",
   options: GetChangesOptions = {}
 ): Promise<ChangesPage> {
@@ -43,37 +44,27 @@ export async function getRecentChanges(
   // Fetch one extra row to detect whether another page exists.
   const fetchLimit = limit + 1;
 
-  const stmt =
-    cursor === null
-      ? kind === "all"
-        ? db
-            .prepare(
-              "SELECT c.id, c.name, c.kind, c.change_type, c.old_version, c.new_version, c.detected_at, p.description, p.homepage FROM changes c LEFT JOIN packages p ON p.name = c.name AND p.kind = c.kind WHERE c.change_type = ? ORDER BY c.detected_at DESC, c.id DESC LIMIT ?"
-            )
-            .bind(changeType, fetchLimit)
-        : db
-            .prepare(
-              "SELECT c.id, c.name, c.kind, c.change_type, c.old_version, c.new_version, c.detected_at, p.description, p.homepage FROM changes c LEFT JOIN packages p ON p.name = c.name AND p.kind = c.kind WHERE c.change_type = ? AND c.kind = ? ORDER BY c.detected_at DESC, c.id DESC LIMIT ?"
-            )
-            .bind(changeType, kind, fetchLimit)
-      : kind === "all"
-        ? db
-            .prepare(
-              "SELECT c.id, c.name, c.kind, c.change_type, c.old_version, c.new_version, c.detected_at, p.description, p.homepage FROM changes c LEFT JOIN packages p ON p.name = c.name AND p.kind = c.kind WHERE c.change_type = ? AND (c.detected_at < ? OR (c.detected_at = ? AND c.id < ?)) ORDER BY c.detected_at DESC, c.id DESC LIMIT ?"
-            )
-            .bind(changeType, cursor.detected_at, cursor.detected_at, cursor.id, fetchLimit)
-        : db
-            .prepare(
-              "SELECT c.id, c.name, c.kind, c.change_type, c.old_version, c.new_version, c.detected_at, p.description, p.homepage FROM changes c LEFT JOIN packages p ON p.name = c.name AND p.kind = c.kind WHERE c.change_type = ? AND c.kind = ? AND (c.detected_at < ? OR (c.detected_at = ? AND c.id < ?)) ORDER BY c.detected_at DESC, c.id DESC LIMIT ?"
-            )
-            .bind(
-              changeType,
-              kind,
-              cursor.detected_at,
-              cursor.detected_at,
-              cursor.id,
-              fetchLimit
-            );
+  // Build the predicate and binds for the (optional) change_type filter,
+  // the (optional) kind filter, and the (optional) keyset cursor. `changeType`
+  // "all" skips the change_type predicate entirely so new and updated rows
+  // stream together, ordered by (detected_at DESC, id DESC).
+  const where: string[] = [];
+  const binds: (string | number)[] = [];
+  if (changeType !== "all") {
+    where.push("c.change_type = ?");
+    binds.push(changeType);
+  }
+  if (kind !== "all") {
+    where.push("c.kind = ?");
+    binds.push(kind);
+  }
+  if (cursor !== null) {
+    where.push("(c.detected_at < ? OR (c.detected_at = ? AND c.id < ?))");
+    binds.push(cursor.detected_at, cursor.detected_at, cursor.id);
+  }
+  const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const sql = `SELECT c.id, c.name, c.kind, c.change_type, c.old_version, c.new_version, c.detected_at, p.description, p.homepage FROM changes c LEFT JOIN packages p ON p.name = c.name AND p.kind = c.kind ${whereClause} ORDER BY c.detected_at DESC, c.id DESC LIMIT ?`;
+  const stmt = db.prepare(sql).bind(...binds, fetchLimit);
 
   const { results } = await stmt.all<ChangeRow>();
   const hasMore = results.length > limit;
