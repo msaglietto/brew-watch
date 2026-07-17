@@ -107,51 +107,138 @@ function pageLink(nextCursor: ChangeCursor | null): string {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Brew Watch — new &amp; updated Homebrew packages</title>
+    <meta
+      name="description"
+      content="A live timeline of new and updated Homebrew formulae and casks, refreshed hourly from formulae.brew.sh."
+    />
+    <meta property="og:title" content="Brew Watch" />
+    <meta
+      property="og:description"
+      content="A live timeline of new and updated Homebrew formulae and casks, refreshed hourly."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf7f2" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161310" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
         color-scheme: light dark;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --bg: light-dark(#faf7f2, #161310);
+        --text: light-dark(#2c261e, #ece4d8);
+        --muted: light-dark(#7d7263, #9c8f7d);
+        --line: light-dark(rgba(70, 55, 35, 0.14), rgba(236, 228, 216, 0.12));
+        --line-soft: light-dark(rgba(70, 55, 35, 0.08), rgba(236, 228, 216, 0.07));
+        --accent: light-dark(#9c5a14, #dfa055);
+        --accent-soft: light-dark(rgba(156, 90, 20, 0.09), rgba(223, 160, 85, 0.12));
+        --hover: light-dark(rgba(70, 55, 35, 0.05), rgba(236, 228, 216, 0.05));
+        --sans: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
       }
       body {
         max-width: 860px;
         margin: 0 auto;
-        padding: 2rem 1rem 4rem;
+        padding: 3rem 1.25rem 5rem;
+        background: var(--bg);
+        background-image: radial-gradient(
+          ellipse 70% 24rem at 50% -6rem,
+          var(--accent-soft),
+          transparent
+        );
+        color: var(--text);
+        font-family: var(--sans);
+        line-height: 1.5;
       }
-      h1 {
-        font-size: 1.5rem;
-        margin-bottom: 0.25rem;
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+      header h1 {
+        font-size: 2.1rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+        margin: 0 0 0.35rem;
+      }
+      header h1 .tld {
+        color: var(--accent);
       }
       p.subtitle {
-        opacity: 0.7;
-        margin-top: 0;
+        color: var(--muted);
+        margin: 0;
+        max-width: 56ch;
+        text-wrap: balance;
+      }
+      p.subtitle a {
+        color: inherit;
+        text-decoration-color: var(--line);
+        text-underline-offset: 3px;
+        transition: color 200ms ease;
+      }
+      p.subtitle a:hover {
+        color: var(--accent);
+      }
+      .filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 2rem;
+        margin: 2rem 0 2.5rem;
       }
       nav.filters {
         display: flex;
-        gap: 0.5rem;
-        margin: 1.5rem 0;
+        align-items: center;
+        gap: 0.4rem;
       }
-      nav.filters + nav.filters {
-        margin-top: -1rem;
+      nav.filters .filter-label {
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-right: 0.35rem;
       }
       nav.filters a {
-        padding: 0.35rem 0.8rem;
-        border: 1px solid currentColor;
+        padding: 0.3rem 0.85rem;
+        border: 1px solid var(--line);
         border-radius: 999px;
         text-decoration: none;
-        opacity: 0.6;
-        font-size: 0.9rem;
+        color: var(--muted);
+        font-size: 0.88rem;
+        font-weight: 500;
+        transition: color 200ms ease, background 200ms ease, border-color 200ms ease,
+          transform 150ms ease;
+      }
+      nav.filters a:hover {
+        color: var(--text);
+        border-color: var(--muted);
+        background: var(--hover);
+      }
+      nav.filters a:active {
+        transform: scale(0.97);
       }
       nav.filters a.active {
-        opacity: 1;
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-soft);
         font-weight: 600;
       }
-      section {
-        margin-bottom: 2.5rem;
-      }
-      section h2 {
-        font-size: 1.1rem;
-        border-bottom: 1px solid currentColor;
-        padding-bottom: 0.4rem;
+      main section h2 {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
       }
       ul {
         list-style: none;
@@ -162,53 +249,71 @@ function pageLink(nextCursor: ChangeCursor | null): string {
         display: flex;
         justify-content: space-between;
         gap: 1rem;
-        padding: 0.5rem 0;
-        border-bottom: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
+        padding: 0.55rem 0.75rem;
+        margin: 0 -0.75rem;
+        border-radius: 8px;
+        border-bottom: 1px solid var(--line-soft);
         font-size: 0.95rem;
+        transition: background 200ms ease;
+      }
+      li:hover {
+        background: var(--hover);
+      }
+      li:last-child {
+        border-bottom: none;
       }
       li a {
         color: inherit;
+        font-family: var(--mono);
+        font-size: 0.9rem;
         font-weight: 600;
         text-decoration: none;
+        transition: color 200ms ease;
       }
       li a:hover {
-        text-decoration: underline;
+        color: var(--accent);
       }
       .kind-tag {
-        opacity: 0.6;
-        font-size: 0.8rem;
-        margin-left: 0.4rem;
+        color: var(--muted);
+        font-size: 0.78rem;
+        margin-left: 0.45rem;
       }
       .badge {
         display: inline-block;
-        margin-left: 0.4rem;
-        padding: 0.05rem 0.4rem;
-        font-size: 0.62rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
+        margin-left: 0.45rem;
+        padding: 0.05rem 0.45rem;
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        font-weight: 600;
+        letter-spacing: 0.07em;
         text-transform: uppercase;
-        border-radius: 999px;
-        background: color-mix(in srgb, currentColor 22%, transparent);
+        border-radius: 4px;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
       }
       .line-main {
         display: flex;
         flex-direction: column;
+        min-width: 0;
       }
       .line-title {
         display: inline;
       }
       .desc {
         display: block;
-        opacity: 0.55;
+        color: var(--muted);
         font-size: 0.82rem;
         margin-top: 0.15rem;
       }
       .desc a.homepage {
+        font-family: inherit;
+        font-size: inherit;
+        font-weight: 400;
         text-decoration: none;
-        opacity: 0.8;
       }
       .desc a.homepage:hover {
-        text-decoration: underline;
+        color: var(--accent);
       }
       .line-meta {
         display: flex;
@@ -217,31 +322,71 @@ function pageLink(nextCursor: ChangeCursor | null): string {
         white-space: nowrap;
       }
       .version {
-        opacity: 0.7;
-        font-variant-numeric: tabular-nums;
+        font-family: var(--mono);
+        font-size: 0.82rem;
+        color: var(--text);
+      }
+      .version .arrow {
+        color: var(--accent);
+        margin: 0 0.2rem;
       }
       .when {
-        opacity: 0.5;
-        font-size: 0.8rem;
-        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 0.72rem;
       }
       .empty {
-        opacity: 0.6;
-        font-style: italic;
+        margin-top: 1rem;
+        padding: 2.5rem 1.5rem;
+        text-align: center;
+        border: 1px dashed var(--line);
+        border-radius: 12px;
+        color: var(--muted);
+      }
+      .empty .glyph {
+        display: block;
+        font-family: var(--mono);
+        font-size: 1.1rem;
+        color: var(--accent);
+        margin-bottom: 0.5rem;
+      }
+      .empty p {
+        margin: 0;
+      }
+      .empty .hint {
+        font-size: 0.85rem;
+        margin-top: 0.35rem;
       }
       .day-group {
-        margin-bottom: 1.75rem;
+        margin-bottom: 2.25rem;
       }
       .day-group:last-of-type {
         margin-bottom: 0;
       }
       .day-heading {
-        font-size: 0.95rem;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--bg);
+        font-family: var(--mono);
+        font-size: 0.75rem;
         font-weight: 600;
-        opacity: 0.8;
-        margin: 0.5rem 0 0.25rem;
-        padding-bottom: 0.25rem;
-        border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0.5rem 0 0.4rem;
+        padding: 0.4rem 0 0.35rem;
+        border-bottom: 1px solid var(--line);
+      }
+      .day-heading::before {
+        content: "";
+        display: inline-block;
+        width: 0.5rem;
+        height: 0.5rem;
+        margin-right: 0.5rem;
+        border-radius: 2px;
+        background: var(--accent);
+        vertical-align: baseline;
       }
       .day-group ul {
         margin-top: 0;
@@ -250,100 +395,156 @@ function pageLink(nextCursor: ChangeCursor | null): string {
         display: flex;
         justify-content: space-between;
         gap: 1rem;
-        margin-top: 1.25rem;
-        font-size: 0.95rem;
+        margin-top: 2rem;
+        font-size: 0.9rem;
       }
       nav.pager a {
-        font-weight: 600;
+        padding: 0.4rem 1rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--text);
+        font-weight: 500;
         text-decoration: none;
+        transition: color 200ms ease, border-color 200ms ease, background 200ms ease,
+          transform 150ms ease;
       }
       nav.pager a:hover {
-        text-decoration: underline;
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+      nav.pager a:active {
+        transform: translateY(1px);
+      }
+      footer {
+        margin-top: 4rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--line-soft);
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+      footer a {
+        color: inherit;
+        text-underline-offset: 3px;
+        transition: color 200ms ease;
+      }
+      footer a:hover {
+        color: var(--accent);
+      }
+      @media (max-width: 540px) {
+        li {
+          flex-direction: column;
+          gap: 0.2rem;
+        }
       }
     </style>
   </head>
   <body>
-    <h1>Brew Watch</h1>
-    <p class="subtitle">
-    New and updated Homebrew formulae &amp; casks, tracked from &nbsp;
-      <a href="https://formulae.brew.sh/" target="_blank" rel="noopener">formulae.brew.sh</a>.
-    </p>
+    <header>
+      <h1>Brew Watch<span class="tld">.</span></h1>
+      <p class="subtitle">
+        New and updated Homebrew formulae &amp; casks, tracked hourly from
+        <a href="https://formulae.brew.sh/" target="_blank" rel="noopener">formulae.brew.sh</a>.
+      </p>
+    </header>
 
-    <nav class="filters" aria-label="Kind filter">
-      <a href={filterLink("all", undefined)} class:list={{ active: kind === "all" }}>All</a>
-      <a href={filterLink("formula", undefined)} class:list={{ active: kind === "formula" }}>Formulae</a>
-      <a href={filterLink("cask", undefined)} class:list={{ active: kind === "cask" }}>Casks</a>
-    </nav>
-    <nav class="filters" aria-label="Change type filter">
-      <a href={filterLink(undefined, "all")} class:list={{ active: type === "all" }}>All</a>
-      <a href={filterLink(undefined, "new")} class:list={{ active: type === "new" }}>New</a>
-      <a href={filterLink(undefined, "updated")} class:list={{ active: type === "updated" }}>Updated</a>
-    </nav>
+    <div class="filter-bar">
+      <nav class="filters" aria-label="Kind filter">
+        <span class="filter-label" aria-hidden="true">kind</span>
+        <a href={filterLink("all", undefined)} class:list={{ active: kind === "all" }}>All</a>
+        <a href={filterLink("formula", undefined)} class:list={{ active: kind === "formula" }}>Formulae</a>
+        <a href={filterLink("cask", undefined)} class:list={{ active: kind === "cask" }}>Casks</a>
+      </nav>
+      <nav class="filters" aria-label="Change type filter">
+        <span class="filter-label" aria-hidden="true">type</span>
+        <a href={filterLink(undefined, "all")} class:list={{ active: type === "all" }}>All</a>
+        <a href={filterLink(undefined, "new")} class:list={{ active: type === "new" }}>New</a>
+        <a href={filterLink(undefined, "updated")} class:list={{ active: type === "updated" }}>Updated</a>
+      </nav>
+    </div>
 
-    <section>
-      <h2>Changes</h2>
-      {
-        byDay.length === 0 ? (
-          <p class="empty">
-            {type === "new"
-              ? "No new packages detected yet."
-              : type === "updated"
-                ? "No updates detected yet."
-                : "No changes detected yet."}
-          </p>
-        ) : (
-          <>
-            {byDay.map((group) => (
-              <div class="day-group">
-                <h3 class="day-heading">{group.label}</h3>
-                <ul>
-                  {group.rows.map((row) => (
-                    <li>
-                      <span class="line-main">
-                        <span class="line-title">
-                          <a href={brewUrl(row)} target="_blank" rel="noopener">
-                            {row.name}
-                          </a>
-                          <span class="kind-tag">{row.kind}</span>
-                          {row.change_type === "new" && <span class="badge">New</span>}
+    <main>
+      <section>
+        <h2>Changes</h2>
+        {
+          byDay.length === 0 ? (
+            <div class="empty">
+              <span class="glyph">$ brew watch</span>
+              <p>
+                {type === "new"
+                  ? "No new packages detected yet."
+                  : type === "updated"
+                    ? "No updates detected yet."
+                    : "No changes detected yet."}
+              </p>
+              <p class="hint">The snapshot runs every hour — check back soon.</p>
+            </div>
+          ) : (
+            <>
+              {byDay.map((group) => (
+                <div class="day-group">
+                  <h3 class="day-heading">{group.label}</h3>
+                  <ul>
+                    {group.rows.map((row) => (
+                      <li>
+                        <span class="line-main">
+                          <span class="line-title">
+                            <a href={brewUrl(row)} target="_blank" rel="noopener">
+                              {row.name}
+                            </a>
+                            <span class="kind-tag">{row.kind}</span>
+                            {row.change_type === "new" && <span class="badge">New</span>}
+                          </span>
+                          {row.description && (
+                            <span class="desc">
+                              {row.description}
+                              {row.homepage && (
+                                <> · <a class="homepage" href={row.homepage} target="_blank" rel="noopener">↗</a></>
+                              )}
+                            </span>
+                          )}
                         </span>
-                        {row.description && (
-                          <span class="desc">
-                            {row.description}
-                            {row.homepage && (
-                              <> · <a class="homepage" href={row.homepage} target="_blank" rel="noopener">↗</a></>
+                        <span class="line-meta">
+                          <span class="version">
+                            {row.change_type === "updated" ? (
+                              <>
+                                {row.old_version}
+                                <span class="arrow">→</span>
+                                {row.new_version}
+                              </>
+                            ) : (
+                              row.new_version
                             )}
                           </span>
-                        )}
-                      </span>
-                      <span class="line-meta">
-                        <span class="version">
-                          {row.change_type === "updated"
-                            ? `${row.old_version} → ${row.new_version}`
-                            : row.new_version}
+                          <span class="when">{timeLabel(row.detected_at)}</span>
                         </span>
-                        <span class="when">{timeLabel(row.detected_at)}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-            <nav class="pager">
-              {cursor ? (
-                <a href={pageLink(null)}>← Newest</a>
-              ) : (
-                <span />
-              )}
-              {page.nextCursor ? (
-                <a href={pageLink(page.nextCursor)}>Older →</a>
-              ) : (
-                <span />
-              )}
-            </nav>
-          </>
-        )
-      }
-    </section>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              <nav class="pager">
+                {cursor ? (
+                  <a href={pageLink(null)}>← Newest</a>
+                ) : (
+                  <span />
+                )}
+                {page.nextCursor ? (
+                  <a href={pageLink(page.nextCursor)}>Older →</a>
+                ) : (
+                  <span />
+                )}
+              </nav>
+            </>
+          )
+        }
+      </section>
+    </main>
+
+    <footer>
+      Snapshots hourly from
+      <a href="https://formulae.brew.sh/" target="_blank" rel="noopener">formulae.brew.sh</a> ·
+      Runs on Cloudflare Workers &amp; D1
+    </footer>
   </body>
 </html>
