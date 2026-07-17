@@ -322,13 +322,25 @@ function pageLink(nextCursor: ChangeCursor | null): string {
         white-space: nowrap;
       }
       .version {
+        display: inline-flex;
+        align-items: baseline;
         font-family: var(--mono);
         font-size: 0.82rem;
         color: var(--text);
       }
+      .version .vnum {
+        display: inline-block;
+        max-width: 22ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: bottom;
+        cursor: help;
+      }
       .version .arrow {
         color: var(--accent);
         margin: 0 0.2rem;
+        flex: none;
       }
       .when {
         color: var(--muted);
@@ -508,12 +520,12 @@ function pageLink(nextCursor: ChangeCursor | null): string {
                           <span class="version">
                             {row.change_type === "updated" ? (
                               <>
-                                {row.old_version}
+                                <span class="vnum" title={row.old_version}>{row.old_version}</span>
                                 <span class="arrow">→</span>
-                                {row.new_version}
+                                <span class="vnum" title={row.new_version}>{row.new_version}</span>
                               </>
                             ) : (
-                              row.new_version
+                              <span class="vnum" title={row.new_version}>{row.new_version}</span>
                             )}
                           </span>
                           <span class="when">{timeLabel(row.detected_at)}</span>

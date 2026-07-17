@@ -1,3 +1,6 @@
+DELETE FROM changes;
+DELETE FROM packages;
+
 INSERT INTO packages (name, kind, version, revision, description, homepage, first_seen_at, last_updated_at) VALUES
 ('1password','cask','8.10.71',0,'Password manager that keeps all passwords secure behind one password','https://1password.com/','2026-07-03T03:00:00.000Z','2026-07-03T03:00:00.000Z'),
 ('arc','cask','1.97.0',0,'Chromium based browser','https://arc.net/','2026-07-03T09:00:00.000Z','2026-07-03T09:00:00.000Z'),
@@ -54,9 +57,13 @@ INSERT INTO packages (name, kind, version, revision, description, homepage, firs
 ('xz','formula','5.6.4',0,'General-purpose data compression with high compression ratio','https://tukaani.org/xz/','2026-07-03T03:00:00.000Z','2026-07-03T03:00:00.000Z'),
 ('yq','formula','4.45.2',0,'Process YAML, JSON, XML, CSV and properties documents from the CLI','https://github.com/mikefarah/yq','2026-07-03T09:00:00.000Z','2026-07-03T09:00:00.000Z'),
 ('zellij','formula','0.42.0',0,'Pluggable terminal workspace, with terminal multiplexer as the base feature','https://zellij.dev','2026-07-03T13:00:00.000Z','2026-07-03T13:00:00.000Z'),
-('zstd','formula','1.5.8',0,'Zstandard is a real-time compression algorithm','https://facebook.github.io/zstd/','2026-07-03T09:00:00.000Z','2026-07-03T09:00:00.000Z');
+('zstd','formula','1.5.8',0,'Zstandard is a real-time compression algorithm','https://facebook.github.io/zstd/','2026-07-03T09:00:00.000Z','2026-07-03T09:00:00.000Z'),
+('microsoft-edge','cask','150.0.4078.80,c705a419-8a90-4e27-89b9-462208cf28d9',0,'Multi-platform web browser','https://www.microsoft.com/edge','2026-07-03T03:00:00.000Z','2026-07-03T03:00:00.000Z'),
+('firefox@nightly','cask','154.0a1,2026-07-16-21-36-09',0,'Web browser','https://www.mozilla.org/firefox/channel/desktop/#nightly','2026-07-03T03:00:00.000Z','2026-07-03T03:00:00.000Z');
 
 INSERT INTO changes (name, kind, change_type, old_version, new_version, detected_at) VALUES
+('microsoft-edge','cask','updated','150.0.4078.65,e7daffc4-3663-402d-934d-bf0b624d7692','150.0.4078.80,c705a419-8a90-4e27-89b9-462208cf28d9','2026-07-03T13:00:00.000Z'),
+('firefox@nightly','cask','updated','154.0a1,2026-07-16-09-05-21','154.0a1,2026-07-16-21-36-09','2026-07-03T13:00:00.000Z'),
 ('wget','formula','updated','1.25.0','1.25.1','2026-07-03T13:00:00.000Z'),
 ('curl','formula','updated','8.14.1','8.14.2','2026-07-03T13:00:00.000Z'),
 ('git','formula','updated','2.50.1','2.50.2','2026-07-03T13:00:00.000Z'),

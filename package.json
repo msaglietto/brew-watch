@@ -12,7 +12,8 @@
     "deploy": "astro build && wrangler deploy",
     "cf-typegen": "wrangler types",
     "db:migrate:local": "wrangler d1 migrations apply brew-watch-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply brew-watch-db --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply brew-watch-db --remote",
+    "db:seed:local": "wrangler d1 execute brew-watch-db --local --file=.demo_seed.sql"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.2",
